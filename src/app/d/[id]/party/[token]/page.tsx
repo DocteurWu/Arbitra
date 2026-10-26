@@ -387,6 +387,9 @@ export default function PartyWorkspacePage(props: { params: Promise<{ id: string
               <p>
                 Elle structure les faits et pointe tes faiblesses avant la confrontation. Personne d&apos;autre ne voit cette conversation.
               </p>
+              <p className={me.messagesLeft <= 3 ? "text-amber-400" : "text-zinc-500"}>
+                {me.messagesLeft} message{me.messagesLeft > 1 ? "s" : ""} restant{me.messagesLeft > 1 ? "s" : ""} avec ton avocate
+              </p>
             </div>
 
             <div className="space-y-3 min-h-[240px] max-h-[50vh] overflow-y-auto p-3 rounded-2xl bg-zinc-900/40 border border-zinc-800/60" aria-live="polite">
@@ -458,7 +461,7 @@ export default function PartyWorkspacePage(props: { params: Promise<{ id: string
               />
               <button
                 type="submit"
-                disabled={!!busy || !input.trim()}
+                disabled={!!busy || !input.trim() || me.messagesLeft <= 0}
                 aria-label="Envoyer"
                 className="h-11 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold transition disabled:opacity-50 flex items-center"
               >

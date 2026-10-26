@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { authenticateParty, addMessage, getDispute, getMessagesForParty, toPartyView } from "@/lib/storage";
+import { authenticateParty, addExchange, getMessagesForParty, messagesLeft, toPartyView } from "@/lib/storage";
 import { askCoach } from "@/lib/llm";
 import { errorResponse } from "@/lib/api";
+import { rateLimit } from "@/lib/rate-limit";
+import { COACH_MESSAGE_MAX_LENGTH } from "@/lib/limits";
 
 const CoachRequestSchema = z.object({
   token: z.string(),
@@ -10,7 +12,7 @@ const CoachRequestSchema = z.object({
     .string()
     .trim()
     .min(1, "Le message ne peut être vide")
-    .max(2000, "Message trop long (2000 caractères max)"),
+    .max(COACH_MESSAGE_MAX_LENGTH, `Message trop long (${COACH_MESSAGE_MAX_LENGTH} caractères max)`),
   finalize: z.boolean().optional(),
 });
 
@@ -20,8 +22,18 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     const { token, message, finalize } = CoachRequestSchema.parse(await req.json());
     const { dispute, side } = await authenticateParty(id, token);
 
+    // Garde-fou de coût : 20 messages par minute et par lien privé
+    const limited = rateLimit(`coach:${token}`, 20, 60_000);
+    if (limited) return limited;
+
     if (dispute.parties[side].plea) {
       return NextResponse.json({ error: "Ta plaidoirie est déjà déposée." }, { status: 409 });
+    }
+    if (messagesLeft(dispute, side) <= 0) {
+      return NextResponse.json(
+        { error: "Tu as utilisé tous tes messages pour ce litige. Génère ta fiche et dépose ta plaidoirie." },
+        { status: 429 }
+      );
     }
 
     const history = await getMessagesForParty(id, side);
@@ -38,13 +50,10 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
       finalize,
     });
 
-    await addMessage(id, side, "user", message);
-    await addMessage(id, side, "coach", coachResponse.message);
-
-    const updated = await getDispute(id);
+    const updated = await addExchange(id, side, message, coachResponse.message);
     return NextResponse.json({
       extractedPlea: coachResponse.extractedPlea || null,
-      view: toPartyView(updated!, side),
+      view: toPartyView(updated, side),
     });
   } catch (err: unknown) {
     return errorResponse(err);

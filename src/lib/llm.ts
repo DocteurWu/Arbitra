@@ -99,10 +99,32 @@ const VerdictSchema = z.object({
   closure_advice: z.string(),
 });
 
-function getOpenAIClient(): OpenAI | null {
+interface CompatProvider {
+  name: "deepseek" | "openai";
+  client: OpenAI;
+  coachModel: string;
+  judgeModel: string;
+}
+
+// DeepSeek expose une API compatible OpenAI : même SDK, autre baseURL
+function getOpenAIClient(): CompatProvider | null {
+  const deepseekKey = process.env.DEEPSEEK_API_KEY;
+  if (deepseekKey && deepseekKey !== "dummy") {
+    return {
+      name: "deepseek",
+      client: new OpenAI({ apiKey: deepseekKey, baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com" }),
+      coachModel: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+      judgeModel: process.env.DEEPSEEK_JUDGE_MODEL || process.env.DEEPSEEK_MODEL || "deepseek-chat",
+    };
+  }
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey || apiKey === "dummy") return null;
-  return new OpenAI({ apiKey });
+  return {
+    name: "openai",
+    client: new OpenAI({ apiKey }),
+    coachModel: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    judgeModel: process.env.OPENAI_JUDGE_MODEL || "gpt-4o",
+  };
 }
 
 function getAnthropicClient(): Anthropic | null {
@@ -116,10 +138,9 @@ function anthropicModel(): string {
 }
 
 /** Fournisseur actif, pour l'afficher dans l'interface. */
-export function activeProvider(): "anthropic" | "openai" | "simulation" {
+export function activeProvider(): "anthropic" | "deepseek" | "openai" | "simulation" {
   if (getAnthropicClient()) return "anthropic";
-  if (getOpenAIClient()) return "openai";
-  return "simulation";
+  return getOpenAIClient()?.name ?? "simulation";
 }
 
 export interface CoachContext {
@@ -179,8 +200,8 @@ export async function askCoach(ctx: CoachContext): Promise<CoachResponse> {
     };
   }
 
-  const openai = getOpenAIClient();
-  if (openai) {
+  const compat = getOpenAIClient();
+  if (compat) {
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
         role: "system",
@@ -193,8 +214,8 @@ export async function askCoach(ctx: CoachContext): Promise<CoachResponse> {
       { role: "user", content: userContent },
     ];
 
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    const completion = await compat.client.chat.completions.create({
+      model: compat.coachModel,
       messages,
       temperature: 0.7,
     });
@@ -355,10 +376,10 @@ export async function askJudge(
     return toVerdict(response.parsed_output);
   }
 
-  const openai = getOpenAIClient();
-  if (openai) {
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_JUDGE_MODEL || "gpt-4o",
+  const compat = getOpenAIClient();
+  if (compat) {
+    const completion = await compat.client.chat.completions.create({
+      model: compat.judgeModel,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: JUDGE_SYSTEM_PROMPT },

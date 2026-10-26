@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Scale, Shield, Swords, Sparkles, ArrowRight, Check, FolderOpen, X } from "lucide-react";
 import { forgetDispute, rememberDispute, useMyDisputes } from "@/lib/client";
+import { AccountMenu, useMe } from "@/components/account";
 import { GAGE_MAX_LENGTH, NAME_MAX_LENGTH, TOPIC_MAX_LENGTH } from "@/lib/limits";
 
 function MyDisputesList() {
@@ -65,6 +66,8 @@ export default function HomePage() {
   const [isCustom, setIsCustom] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [noCredits, setNoCredits] = useState(false);
+  const { data: me } = useMe();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,6 +84,7 @@ export default function HomePage() {
 
     setLoading(true);
     setError(null);
+    setNoCredits(false);
 
     try {
       const res = await fetch("/api/disputes", {
@@ -95,8 +99,15 @@ export default function HomePage() {
       });
 
       const data = await res.json();
+      if (res.status === 401) {
+        router.push("/login?next=/");
+        return;
+      }
+      if (res.status === 402) {
+        setNoCredits(true);
+      }
       if (!res.ok) {
-        throw new Error(data.error || "Impossible de créer la dispute.");
+        throw new Error(data.error || "Impossible de créer le litige.");
       }
 
       // Les liens privés restent dans ce navigateur, jamais dans l'URL du hub
@@ -127,9 +138,12 @@ export default function HomePage() {
               L&apos;Arbitre
             </span>
           </div>
-          <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-zinc-800/80 text-zinc-400 border border-zinc-700/50">
-            Protocole IA Impartial
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:inline text-xs font-medium px-2.5 py-1 rounded-full bg-zinc-800/80 text-zinc-400 border border-zinc-700/50">
+              Protocole IA Impartial
+            </span>
+            <AccountMenu />
+          </div>
         </div>
       </header>
 
@@ -172,9 +186,21 @@ export default function HomePage() {
         <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
-              <div className="p-3.5 rounded-xl bg-red-950/40 border border-red-800/50 text-red-300 text-xs font-medium">
-                {error}
+              <div role="alert" className="p-3.5 rounded-xl bg-red-950/40 border border-red-800/50 text-red-300 text-xs font-medium flex items-center justify-between gap-3">
+                <span>{error}</span>
+                {noCredits && (
+                  <Link href="/pricing" className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 text-zinc-950 font-bold">
+                    Voir les offres
+                  </Link>
+                )}
               </div>
+            )}
+            {me?.authEnabled && (
+              <p className="text-[11px] text-zinc-500 text-center -mb-2">
+                {me.user
+                  ? `Il te reste ${me.credits ?? 0} litige${(me.credits ?? 0) > 1 ? "s" : ""}. Ton adversaire participe gratuitement.`
+                  : "Ton premier litige est offert : connecte-toi au moment de l'ouvrir."}
+              </p>
             )}
 
             {/* Litige Topic */}

@@ -115,11 +115,28 @@ export default function DisputeHubPage(props: { params: Promise<{ id: string }> 
 
   // Liens privés : uniquement pour le navigateur qui a créé le litige
   useEffect(() => {
-    const timer = setTimeout(() => {
+    let cancelled = false;
+    const timer = setTimeout(async () => {
       const mine = getMyDispute(id);
-      setTokens({ A: mine?.tokenA, B: mine?.tokenB });
+      if (mine?.tokenA && mine?.tokenB) {
+        setTokens({ A: mine.tokenA, B: mine.tokenB });
+        return;
+      }
+      // Autre appareil : le compte qui a ouvert le litige retrouve ses liens côté serveur
+      try {
+        const res = await fetch(`/api/disputes/${id}/links`, { cache: "no-store" });
+        if (res.ok && !cancelled) {
+          const links: { tokenA: string; tokenB: string } = await res.json();
+          setTokens({ A: links.tokenA, B: links.tokenB });
+        }
+      } catch {
+        // pas propriétaire ou hors ligne : on reste en vue publique
+      }
     }, 0);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [id]);
 
   useEffect(() => {

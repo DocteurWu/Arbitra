@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Check, Copy, RefreshCw, Scale } from "lucide-react";
 import { DisputeStatus } from "@/types/dispute";
+import { AccountMenu } from "@/components/account";
 
 export function AppHeader({ right }: { right?: React.ReactNode }) {
   return (
@@ -15,7 +16,10 @@ export function AppHeader({ right }: { right?: React.ReactNode }) {
           </span>
           <span className="font-bold text-base tracking-tight text-zinc-100">L&apos;Arbitre</span>
         </Link>
-        {right}
+        <div className="flex items-center gap-3">
+          {right}
+          <AccountMenu />
+        </div>
       </div>
     </header>
   );

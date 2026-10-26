@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# L'Arbitre
 
-## Getting Started
+Arbitrage de disputes privées par IA : chaque partie prépare son dossier avec une avocate IA,
+puis un juge IA tranche. Next.js 16 · Supabase (comptes + Postgres) · Stripe · Claude / DeepSeek / OpenAI.
 
-First, run the development server:
+## Démarrage local (sans compte, sans paiement)
 
 ```bash
+npm install
+cp .env.example .env.local   # ajoute au moins une clé IA, sinon le simulateur local est utilisé
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Sans clés Supabase, l'app tourne en **mode ouvert** : pas de connexion, pas de crédits,
+litiges stockés dans `.data/disputes.json`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Activer les comptes et le paiement
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Supabase** : crée un projet, colle `supabase/schema.sql` dans *SQL Editor* et lance-le,
+   puis renseigne les 3 variables `*SUPABASE*` (Project Settings > API).
+   Dans *Authentication > URL Configuration*, ajoute `http://localhost:3000/auth/callback`
+   (et l'URL de production) aux *Redirect URLs*.
+2. **Stripe** : renseigne `STRIPE_SECRET_KEY` (clé de test `sk_test_…`).
+   En local, relaie les webhooks :
+   ```bash
+   stripe listen --forward-to localhost:3000/api/stripe/webhook
+   ```
+   copie le `whsec_…` affiché dans `STRIPE_WEBHOOK_SECRET`.
+   Active aussi le *portail client* (Paramètres > Billing > Portail client) pour la gestion des abonnements.
+3. Redémarre `npm run dev`. Carte de test : `4242 4242 4242 4242`, date future, CVC au choix.
 
-## Learn More
+## Modèle économique
 
-To learn more about Next.js, take a look at the following resources:
+- Chaque compte reçoit **1 litige offert** (trigger SQL à l'inscription).
+- Ouvrir un litige **débite 1 crédit** (atomique, recrédité si la création échoue).
+- Offres dans `src/lib/plans.ts` (prix envoyés à Stripe tels quels : rien à créer dans le dashboard).
+- L'adversaire participe **sans compte**, avec son lien privé.
+- Budget par litige : 12 messages à l'avocate par partie (`src/lib/limits.ts`).
+- Les crédits ne sont accordés que par le webhook Stripe (`src/app/api/stripe/webhook`),
+  de façon idempotente (`grant_credits`, clé = id de session/facture Stripe).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Tests
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+node test-e2e.mjs   # parcours complet contre http://localhost:3000
+```

@@ -53,6 +53,8 @@ export interface Verdict {
 }
 
 export interface Dispute {
+  // Compte qui a payé le litige (null en mode ouvert, sans comptes)
+  ownerId?: string | null;
   id: string;
   topic: string;
   gage: string;
@@ -102,6 +104,7 @@ export interface PartyView {
     name: string;
     plea: Plea | null;
     rebuttal: string | null;
+    messagesLeft: number;
   };
   opponent: PublicParty;
   messages: ChatMessage[];
