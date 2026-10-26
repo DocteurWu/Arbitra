@@ -44,6 +44,11 @@ export interface Verdict {
   pointsAnalysis: PointRuling[];
   loserPenalty: string;
   closureAdvice: string;
+  // Solidité globale de chaque dossier, de 0 à 100
+  scoreA?: number;
+  scoreB?: number;
+  // true si le verdict vient du simulateur local (aucune clé API)
+  simulated?: boolean;
   generatedAt: string;
 }
 
@@ -59,4 +64,45 @@ export interface Dispute {
   };
   messages: ChatMessage[];
   verdict: Verdict | null;
+  // Dernière erreur de l'arbitrage, pour permettre de relancer
+  verdictError?: string | null;
+}
+
+// --- Vues exposées par l'API (jamais de token ni de messages privés) ---
+
+export interface PublicParty {
+  side: PartySide;
+  name: string;
+  hasPlea: boolean;
+  hasRebuttal: boolean;
+  // Visible uniquement une fois les deux plaidoiries déposées
+  plea: Plea | null;
+  // Visible uniquement une fois le verdict rendu
+  rebuttal: string | null;
+}
+
+export interface PublicDispute {
+  id: string;
+  topic: string;
+  gage: string;
+  status: DisputeStatus;
+  createdAt: string;
+  parties: {
+    A: PublicParty;
+    B: PublicParty;
+  };
+  verdict: Verdict | null;
+  verdictError: string | null;
+}
+
+export interface PartyView {
+  dispute: PublicDispute;
+  me: {
+    side: PartySide;
+    name: string;
+    plea: Plea | null;
+    rebuttal: string | null;
+  };
+  opponent: PublicParty;
+  messages: ChatMessage[];
 }

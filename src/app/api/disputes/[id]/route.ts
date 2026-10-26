@@ -1,24 +1,20 @@
 import { NextResponse } from "next/server";
-import { getDispute } from "@/lib/storage";
+import { getDispute, toPublicDispute } from "@/lib/storage";
+import { activeProvider } from "@/lib/llm";
+import { errorResponse } from "@/lib/api";
 
-export async function GET(
-  req: Request,
-  props: { params: Promise<{ id: string }> }
-) {
+// Vue publique : ni tokens, ni échanges privés avec les avocates
+export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await props.params;
     const dispute = await getDispute(id);
 
     if (!dispute) {
-      return NextResponse.json(
-        { error: "Dispute non trouvée" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Litige introuvable" }, { status: 404 });
     }
 
-    return NextResponse.json({ dispute });
+    return NextResponse.json({ dispute: toPublicDispute(dispute), provider: activeProvider() });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Erreur interne";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return errorResponse(err);
   }
 }

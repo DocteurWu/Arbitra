@@ -32,7 +32,7 @@ async function run() {
     }),
   });
   const coachAData = await coachARes.json();
-  console.log("Coach A réponse:", coachAData.coachMessage.content.slice(0, 80) + "...");
+  console.log("Coach A réponse:", coachAData.view.messages.at(-1).content.slice(0, 80) + "...");
 
   console.log("\n=== 3. VALIDATION PLAIDOIRIE PARTIE A ===");
   const pleaARes = await fetch(`${BASE_URL}/api/disputes/${disputeId}/plea`, {
@@ -49,7 +49,7 @@ async function run() {
     }),
   });
   const pleaAData = await pleaARes.json();
-  console.log("Plea A statut:", pleaAData.dispute.status);
+  console.log("Plea A statut:", pleaAData.status);
 
   console.log("\n=== 4. COACHING ET PLAIDOIRIE PARTIE B ===");
   const pleaBRes = await fetch(`${BASE_URL}/api/disputes/${disputeId}/plea`, {
@@ -66,7 +66,7 @@ async function run() {
     }),
   });
   const pleaBData = await pleaBRes.json();
-  console.log("Dispute statut après Plea B (attendu: rebuttal) :", pleaBData.dispute.status);
+  console.log("Dispute statut après Plea B (attendu: rebuttal) :", pleaBData.status);
 
   console.log("\n=== 5. RÉPLIQUE UNIQUE PARTIE A ===");
   const rebARes = await fetch(`${BASE_URL}/api/disputes/${disputeId}/rebuttal`, {
@@ -91,13 +91,13 @@ async function run() {
   });
   const rebBData = await rebBRes.json();
   console.log("Verdict prêt ?", rebBData.verdictReady);
-  console.log("Statut dispute:", rebBData.dispute.status);
-  if (rebBData.dispute.verdict) {
+  console.log("Statut dispute:", rebBData.view.dispute.status);
+  if (rebBData.view.dispute.verdict) {
     console.log("\n=== VERDICT OFFICIEL DU JUGE ===");
-    console.log("Gagnant :", rebBData.dispute.verdict.winner);
-    console.log("Titre :", rebBData.dispute.verdict.headline);
-    console.log("Gage :", rebBData.dispute.verdict.loserPenalty);
-    console.log("Conseil :", rebBData.dispute.verdict.closureAdvice);
+    console.log("Gagnant :", rebBData.view.dispute.verdict.winner);
+    console.log("Titre :", rebBData.view.dispute.verdict.headline);
+    console.log("Gage :", rebBData.view.dispute.verdict.loserPenalty);
+    console.log("Conseil :", rebBData.view.dispute.verdict.closureAdvice);
     console.log("\nTest E2E réussi à 100% !");
   } else {
     console.error("ERREUR: Le verdict n'a pas été généré.");

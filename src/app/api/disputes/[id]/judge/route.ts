@@ -1,49 +1,35 @@
 import { NextResponse } from "next/server";
-import { getDispute, saveVerdict } from "@/lib/storage";
-import { askJudge } from "@/lib/llm";
+import { getDispute, toPublicDispute } from "@/lib/storage";
+import { runJudgement } from "@/lib/arbitration";
+import { errorResponse } from "@/lib/api";
 
-export async function POST(
-  req: Request,
-  props: { params: Promise<{ id: string }> }
-) {
+// Relance de l'arbitrage (après une erreur du juge, par exemple)
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await props.params;
     const dispute = await getDispute(id);
 
     if (!dispute) {
-      return NextResponse.json({ error: "Dispute non trouvée" }, { status: 404 });
+      return NextResponse.json({ error: "Litige introuvable" }, { status: 404 });
     }
 
-    if (dispute.verdict) {
-      return NextResponse.json({ verdict: dispute.verdict, dispute });
-    }
-
-    if (!dispute.parties.A.plea || !dispute.parties.B.plea) {
+    if (!dispute.verdict && dispute.status !== "judging") {
       return NextResponse.json(
-        { error: "Les deux plaidoiries doivent être soumises avant l'arbitrage" },
-        { status: 400 }
+        { error: "Les deux plaidoiries et les deux répliques doivent être déposées avant l'arbitrage" },
+        { status: 409 }
       );
     }
 
-    const verdict = await askJudge(
-      dispute.topic,
-      dispute.gage,
-      {
-        name: dispute.parties.A.name,
-        plea: dispute.parties.A.plea,
-        rebuttal: dispute.parties.A.rebuttal,
-      },
-      {
-        name: dispute.parties.B.name,
-        plea: dispute.parties.B.plea,
-        rebuttal: dispute.parties.B.rebuttal,
-      }
-    );
+    const judged = await runJudgement(id);
+    if (!judged.verdict) {
+      return NextResponse.json(
+        { error: judged.verdictError || "L'arbitrage a échoué", dispute: toPublicDispute(judged) },
+        { status: 502 }
+      );
+    }
 
-    const updatedDispute = await saveVerdict(id, verdict);
-    return NextResponse.json({ verdict, dispute: updatedDispute });
+    return NextResponse.json({ verdict: judged.verdict, dispute: toPublicDispute(judged) });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Erreur interne";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return errorResponse(err);
   }
 }

@@ -2,7 +2,50 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Scale, Shield, Swords, Sparkles, ArrowRight, Check } from "lucide-react";
+import Link from "next/link";
+import { Scale, Shield, Swords, Sparkles, ArrowRight, Check, FolderOpen, X } from "lucide-react";
+import { forgetDispute, rememberDispute, useMyDisputes } from "@/lib/client";
+import { GAGE_MAX_LENGTH, NAME_MAX_LENGTH, TOPIC_MAX_LENGTH } from "@/lib/limits";
+
+function MyDisputesList() {
+  const disputes = useMyDisputes();
+  if (disputes.length === 0) return null;
+
+  return (
+    <section className="mt-8 space-y-3" aria-labelledby="my-disputes">
+      <h2 id="my-disputes" className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
+        <FolderOpen className="h-4 w-4 text-amber-400" />
+        Mes litiges
+      </h2>
+      <ul className="space-y-2">
+        {disputes.map((d) => {
+          // Le créateur revient au hub (deux liens), une partie invitée à son espace privé
+          const href = !d.tokenA && d.token ? `/d/${d.id}/party/${d.token}` : `/d/${d.id}`;
+          return (
+            <li key={d.id} className="group flex items-center gap-2 rounded-xl bg-zinc-900/60 border border-zinc-800 hover:border-zinc-700 transition">
+              <Link href={href} className="flex-1 min-w-0 px-4 py-3">
+                <p className="text-sm text-zinc-200 truncate">&laquo; {d.topic} &raquo;</p>
+                <p className="text-[11px] text-zinc-500 mt-0.5">
+                  {d.tokenA ? "Créé par toi" : d.side ? `Partie ${d.side}` : "Consulté"} ·{" "}
+                  {new Date(d.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                </p>
+              </Link>
+              <button
+                type="button"
+                onClick={() => forgetDispute(d.id)}
+                aria-label="Retirer de la liste"
+                title="Retirer de la liste (le litige n'est pas supprimé)"
+                className="p-2 mr-2 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
 
 const PRESET_GAGES = [
   "🍽️ Fait la vaisselle pendant 3 jours",
@@ -56,7 +99,15 @@ export default function HomePage() {
         throw new Error(data.error || "Impossible de créer la dispute.");
       }
 
-      router.push(`/d/${data.dispute.id}?created=true&tokenA=${data.tokenA}&tokenB=${data.tokenB}`);
+      // Les liens privés restent dans ce navigateur, jamais dans l'URL du hub
+      rememberDispute({
+        id: data.dispute.id,
+        topic: data.dispute.topic,
+        createdAt: data.dispute.createdAt,
+        tokenA: data.tokenA,
+        tokenB: data.tokenB,
+      });
+      router.push(`/d/${data.dispute.id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erreur inattendue");
       setLoading(false);
@@ -128,13 +179,15 @@ export default function HomePage() {
 
             {/* Litige Topic */}
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-300">
+              <label htmlFor="topic" className="text-xs font-semibold uppercase tracking-wider text-zinc-300">
                 L&apos;objet du litige
               </label>
               <textarea
+                id="topic"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 rows={2}
+                maxLength={TOPIC_MAX_LENGTH}
                 placeholder="Ex: Qui devait vider le lave-vaisselle hier soir après le dîner ?"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 text-sm transition"
                 required
@@ -151,6 +204,7 @@ export default function HomePage() {
                   type="text"
                   value={nameA}
                   onChange={(e) => setNameA(e.target.value)}
+                  maxLength={NAME_MAX_LENGTH}
                   placeholder="Toi"
                   className="w-full px-3.5 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50 text-sm"
                 />
@@ -163,6 +217,7 @@ export default function HomePage() {
                   type="text"
                   value={nameB}
                   onChange={(e) => setNameB(e.target.value)}
+                  maxLength={NAME_MAX_LENGTH}
                   placeholder="L'autre"
                   className="w-full px-3.5 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50 text-sm"
                 />
@@ -207,6 +262,7 @@ export default function HomePage() {
                   type="text"
                   value={customGage}
                   onChange={(e) => setCustomGage(e.target.value)}
+                  maxLength={GAGE_MAX_LENGTH}
                   placeholder="Ex: Inviter l'autre au restaurant japonais vendredi"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50 text-sm"
                   required={isCustom}
@@ -231,6 +287,8 @@ export default function HomePage() {
             </button>
           </form>
         </div>
+
+        <MyDisputesList />
       </main>
 
       {/* Footer */}

@@ -1,18 +1,25 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createDispute } from "@/lib/storage";
+import { createDispute, toPublicDispute } from "@/lib/storage";
+import { errorResponse } from "@/lib/api";
 
 const CreateDisputeSchema = z.object({
-  topic: z.string().min(5, "L'objet du litige doit comporter au moins 5 caractères"),
-  gage: z.string().min(3, "Veuillez spécifier un gage"),
-  nameA: z.string().optional().default("Partie A"),
-  nameB: z.string().optional().default("Partie B"),
+  topic: z
+    .string()
+    .trim()
+    .min(5, "L'objet du litige doit comporter au moins 5 caractères")
+    .max(280, "L'objet du litige doit tenir en 280 caractères"),
+  gage: z.string().trim().min(3, "Veuillez spécifier un gage").max(160, "Gage trop long (160 caractères max)"),
+  nameA: z.string().trim().max(40).optional().transform((v) => v || "Partie A"),
+  nameB: z.string().trim().max(40).optional().transform((v) => v || "Partie B"),
 });
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const validated = CreateDisputeSchema.parse(body);
+    const validated = CreateDisputeSchema.parse(await req.json());
+    if (validated.nameA.toLowerCase() === validated.nameB.toLowerCase()) {
+      return NextResponse.json({ error: "Les deux parties doivent avoir des prénoms différents" }, { status: 400 });
+    }
 
     const { dispute, tokenA, tokenB } = await createDispute(
       validated.topic,
@@ -22,7 +29,7 @@ export async function POST(req: Request) {
     );
 
     return NextResponse.json({
-      dispute,
+      dispute: toPublicDispute(dispute),
       tokenA,
       tokenB,
       links: {
@@ -33,7 +40,6 @@ export async function POST(req: Request) {
       },
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Erreur interne";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return errorResponse(err);
   }
 }
