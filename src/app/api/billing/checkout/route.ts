@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { createCheckoutUrl, isStripeEnabled } from "@/lib/billing";
+import { publicOrigin } from "@/lib/origin";
 import { isPlanId } from "@/lib/plans";
 import { errorResponse } from "@/lib/api";
 import { rateLimit } from "@/lib/rate-limit";
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
     const limited = rateLimit(`checkout:${user.id}`, 10, 10 * 60_000);
     if (limited) return limited;
 
-    const url = await createCheckoutUrl(user, plan as Parameters<typeof createCheckoutUrl>[1], new URL(req.url).origin);
+    const url = await createCheckoutUrl(user, plan as Parameters<typeof createCheckoutUrl>[1], publicOrigin(req));
     return NextResponse.json({ url });
   } catch (err: unknown) {
     return errorResponse(err);

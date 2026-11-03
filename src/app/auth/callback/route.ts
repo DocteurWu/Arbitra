@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { createSessionClient } from "@/lib/supabase/server";
+import { publicOrigin } from "@/lib/origin";
 
 // Retour du lien magique / de Google : échange le code contre une session puis redirige
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  const origin = publicOrigin(request);
   const code = searchParams.get("code");
   const rawNext = searchParams.get("next") ?? "/";
   // Redirection interne uniquement (évite les open redirects)
