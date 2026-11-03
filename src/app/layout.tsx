@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -12,7 +12,17 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  themeColor: "#09090b",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export const metadata: Metadata = {
+  applicationName: "L'Arbitre",
+  appleWebApp: { capable: true, title: "L'Arbitre", statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
   title: "L'Arbitre — Le Juge IA de disputes privées",
   description: "Tranchez vos disputes de couple, d'amis et de coloc sans perdre la face grâce à un arbitrage IA impartial.",
 };

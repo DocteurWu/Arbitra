@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Scale, Shield, Swords, Sparkles, ArrowRight, Check, FolderOpen, X } from "lucide-react";
 import { forgetDispute, rememberDispute, useMyDisputes } from "@/lib/client";
 import { AccountMenu, useMe } from "@/components/account";
+import { InstallPrompt } from "@/components/install-prompt";
 import { GAGE_MAX_LENGTH, NAME_MAX_LENGTH, TOPIC_MAX_LENGTH } from "@/lib/limits";
 
 function MyDisputesList() {
@@ -149,6 +150,8 @@ export default function HomePage() {
 
       {/* Main Container */}
       <main className="max-w-2xl mx-auto px-4 py-10 w-full flex-1 flex flex-col justify-center">
+        <InstallPrompt />
+
         {/* Hero Section */}
         <div className="text-center mb-8 space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 mb-1">
