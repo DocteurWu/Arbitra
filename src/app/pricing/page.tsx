@@ -58,9 +58,23 @@ export default function PricingPage(props: { searchParams: Promise<{ paid?: stri
           </p>
         </div>
 
-        {params.paid && (
+        {params.paid && me?.user && (
           <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-700/50 text-emerald-300 text-xs font-medium">
             Merci ! Ton paiement est confirmé, tes crédits arrivent dans un instant.
+          </div>
+        )}
+        {params.paid && me?.authEnabled && !me.user && (
+          <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-700/50 space-y-2">
+            <p className="text-amber-300 text-xs font-medium">
+              Paiement reçu. Tu n&apos;es pas connecté : tes crédits sont rattachés au compte utilisé pour payer.
+              Connecte-toi avec le même email pour les voir.
+            </p>
+            <Link
+              href={`/login?next=${encodeURIComponent("/pricing?paid=1")}`}
+              className="inline-block text-xs font-bold text-amber-400 hover:text-amber-300 underline"
+            >
+              Se connecter →
+            </Link>
           </div>
         )}
         {params.canceled && (
