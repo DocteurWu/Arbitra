@@ -70,16 +70,30 @@ export async function createCheckoutUrl(user: CurrentUser, planId: PlanId, origi
         },
       };
 
+  const mode = plan.kind === "subscription" ? "subscription" : "payment";
+
   const session = await stripe().checkout.sessions.create({
-    mode: plan.kind === "subscription" ? "subscription" : "payment",
+    // Paramètres configurés dans Checkout Studio (Stripe Dashboard) — ne pas éditer à la main.
+    ui_mode: "hosted_page",
+    origin_context: "web",
+    integration_identifier: "hosted_web_0001",
+    billing_address_collection: "auto",
+    phone_number_collection: { enabled: false },
+    automatic_tax: { enabled: false },
+    submit_type: "auto",
+    allow_promotion_codes: true,
+    // `payment_method_collection` ne vaut que pour les abonnements (mode subscription).
+    ...(mode === "subscription" ? { payment_method_collection: "always" as const } : {}),
+
+    // Câblage applicatif : identifie l'utilisateur pour créditer le bon compte au webhook.
+    mode,
     customer,
     client_reference_id: user.id,
     line_items: [lineItem],
     metadata,
-    ...(plan.kind === "subscription" ? { subscription_data: { metadata } } : {}),
+    ...(mode === "subscription" ? { subscription_data: { metadata } } : {}),
     success_url: `${origin}/pricing?paid=1&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${origin}/pricing?canceled=1`,
-    allow_promotion_codes: true,
   });
 
   if (!session.url) throw new Error("Stripe n'a pas renvoyé d'URL de paiement");
