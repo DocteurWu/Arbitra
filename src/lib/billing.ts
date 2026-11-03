@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { adminClient, CurrentUser } from "@/lib/supabase/server";
-import { CURRENCY, PLANS, PlanId, isPlanId } from "@/lib/plans";
+import { CURRENCY, PLANS, PlanId, isPlanId, stripePriceId } from "@/lib/plans";
 
 // --- Crédits ---
 
@@ -55,13 +55,12 @@ export async function createCheckoutUrl(user: CurrentUser, planId: PlanId, origi
   const plan = PLANS[planId];
   const customer = await ensureCustomer(user);
   const metadata = { user_id: user.id, plan: plan.id };
+  const priceId = stripePriceId(plan.id);
 
-  const session = await stripe().checkout.sessions.create({
-    mode: plan.kind === "subscription" ? "subscription" : "payment",
-    customer,
-    client_reference_id: user.id,
-    line_items: [
-      {
+  // Catalogue Stripe si un Price ID est configuré, sinon prix à la volée (aucune config dashboard).
+  const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = priceId
+    ? { quantity: 1, price: priceId }
+    : {
         quantity: 1,
         price_data: {
           currency: CURRENCY,
@@ -69,11 +68,16 @@ export async function createCheckoutUrl(user: CurrentUser, planId: PlanId, origi
           product_data: { name: `L'Arbitre — ${plan.name}`, description: plan.description },
           ...(plan.kind === "subscription" ? { recurring: { interval: "month" as const } } : {}),
         },
-      },
-    ],
+      };
+
+  const session = await stripe().checkout.sessions.create({
+    mode: plan.kind === "subscription" ? "subscription" : "payment",
+    customer,
+    client_reference_id: user.id,
+    line_items: [lineItem],
     metadata,
     ...(plan.kind === "subscription" ? { subscription_data: { metadata } } : {}),
-    success_url: `${origin}/pricing?paid=1`,
+    success_url: `${origin}/pricing?paid=1&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${origin}/pricing?canceled=1`,
     allow_promotion_codes: true,
   });
@@ -110,15 +114,56 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<string> {
       return granted ? `+${found.plan.credits} crédits (pack)` : "déjà traité";
     }
 
-    // Abonnement : première facture et renouvellements mensuels
+    // Abonnement : première facture et renouvellements mensuels.
+    // On remonte l'objet Subscription (graphe d'objets Stripe) au lieu de lire des
+    // métadonnées recopiées sur la facture : c'est la source fiable, quel que soit
+    // le mode de facturation, et ça survit aux changements de version d'API.
     case "invoice.paid": {
       const invoice = event.data.object as Stripe.Invoice;
-      const details = invoice.parent?.subscription_details;
-      if (!details) return "ignoré";
-      const found = planFromMetadata(details.metadata);
+      const ref = invoice.parent?.subscription_details?.subscription;
+      const subscriptionId = typeof ref === "string" ? ref : ref?.id;
+      if (!subscriptionId) return "ignoré";
+      const subscription = await stripe().subscriptions.retrieve(subscriptionId);
+      const found = planFromMetadata(subscription.metadata);
       if (!found) return "métadonnées manquantes";
       const granted = await grantCredits(found.userId, found.plan.credits, "subscription", `inv:${invoice.id}`);
       return granted ? `+${found.plan.credits} crédits (abonnement)` : "déjà traité";
+    }
+
+    // Paiement différé échoué (SEPA, prélèvement…) : rien n'a été crédité, rien à reprendre.
+    case "checkout.session.async_payment_failed": {
+      const session = event.data.object as Stripe.Checkout.Session;
+      return `paiement différé échoué (${session.id})`;
+    }
+
+    // Échec de renouvellement : Stripe relance tout seul (Smart Retries), on trace.
+    case "invoice.payment_failed": {
+      const invoice = event.data.object as Stripe.Invoice;
+      return `renouvellement échoué (${invoice.id})`;
+    }
+
+    // Fin d'abonnement : les crédits déjà accordés restent acquis (modèle à crédits).
+    case "customer.subscription.deleted": {
+      const sub = event.data.object as Stripe.Subscription;
+      return `abonnement résilié (${sub.id})`;
+    }
+
+    // Politique produit retenue : les crédits achetés sont CONSERVÉS même après remboursement.
+    // On se contente de tracer l'événement (visibilité comptable + repérage d'abus).
+    case "charge.refunded": {
+      const charge = event.data.object as Stripe.Charge;
+      const montant = (charge.amount_refunded ?? 0) / 100;
+      return `remboursement ${montant.toFixed(2)} € — crédits conservés (politique choisie)`;
+    }
+
+    // Signaux risque : on trace pour pouvoir agir manuellement (aucune action automatique).
+    case "charge.dispute.created": {
+      const dispute = event.data.object as Stripe.Dispute;
+      return `LITIGE BANCAIRE ouvert (${dispute.id}) — action manuelle requise`;
+    }
+    case "radar.early_fraud_warning.created": {
+      const warning = event.data.object as Stripe.Radar.EarlyFraudWarning;
+      return `alerte fraude Radar (${warning.id}) — à vérifier`;
     }
 
     default:

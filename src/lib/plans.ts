@@ -56,6 +56,15 @@ export function isPlanId(value: unknown): value is PlanId {
   return typeof value === "string" && value in PLANS;
 }
 
+/**
+ * Prix Stripe du catalogue (mode test ou live, selon la clé utilisée).
+ * Si la variable d'environnement est absente, on retombe sur `price_data` (prix en dur ci-dessus).
+ * Ainsi le même code marche avec ou sans catalogue Stripe.
+ */
+export function stripePriceId(planId: PlanId): string | undefined {
+  return process.env[`STRIPE_PRICE_${planId.toUpperCase()}`] || undefined;
+}
+
 export function formatPrice(amountCents: number): string {
   return (amountCents / 100).toLocaleString("fr-FR", { style: "currency", currency: CURRENCY.toUpperCase() });
 }
